@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    layer_name: /backbone/backbone/stem/down1/conv/Conv
+    modified_path: yolox-sPlus-opt-pseudoV2-T4-960x960-T4-seg16cls__backbone_backbone_stem_down1_conv_Conv.onnx
+    original_path: /home/ktro2828/autoware_data/tensorrt_yolox/yolox-sPlus-opt-pseudoV2-T4-960x960-T4-seg16cls.onnx
