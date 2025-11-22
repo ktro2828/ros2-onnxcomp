@@ -52,6 +52,52 @@ Here is the sample result (Left: Before, Right: After):
 rosdep update
 rosdep install --from-paths . --ignore-src -r -y
 colcon build --symlink-install
+source install/setup.bash
 ```
 
 ### Run ONNX Model on ROS 2
+
+```shell
+ros2 launch onnxcomp onnxcomp.launch.xml onnx_path:=<ONNX_PATH; str>
+```
+
+#### Inner Workings
+
+```mermaid
+flowchart TD
+  A["~/input/image"] --> B{"CvBridge convert"}
+  B -->|Image| B1["imgmsg_to_cv2"]
+  B -->|CompressedImage| B2["compressed_imgmsg_to_cv2"]
+  B1 --> C["Preprocess: resize to (W,H) 
+  -> normalize [0,1] float32
+  -> add batch (1,H,W,C)
+  -> transpose to (1,C,H,W)"]
+  B2 --> C
+  C --> D["ONNX Runtime"]
+  D --> E["Take last output: feature tensor"]
+  E --> F["Postprocess: (1,C,H,W) 
+  -> (H,W,C)
+  -> mean across C
+  -> (H,W); normalize to 8-bit [0,255]"]
+  F --> G["cv2_to_imgmsg(feature)"]
+  G --> H["~/output/feature"]
+```
+
+#### Input Topics
+
+| Name            | Type                                   | Description                                       |
+| --------------- | -------------------------------------- | ------------------------------------------------- |
+| "~/input/image" | `sensor_msgs/Image \| CompressedImage` | Input image or compresed image if `use_raw=false` |
+
+#### Output Topics
+
+| Name               | Type                | Description              |
+| ------------------ | ------------------- | ------------------------ |
+| "~/output/feature" | `sensor_msgs/Image` | Output feature map image |
+
+#### Parameters
+
+| Name        | Type     | Default                | Description                       |
+| ----------- | -------- | ---------------------- | --------------------------------- |
+| "onnx_path" | `string` | `"path/to/model.onnx"` | File path to the ONNX model       |
+| "use_raw"   | `bool`   | `false`                | Whether to use raw image as input |

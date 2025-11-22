@@ -208,3 +208,5 @@ __marimo__/
 
 *.onnx
 onnxcomp/data/*.yaml
+install
+log
