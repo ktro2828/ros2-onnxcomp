@@ -1,32 +1,15 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8"?>
 <launch>
-    <arg
-        name="onnx1"
-        default="path/to/model.onnx"
-        description="Path to the ONNX model"
-    />
-    <arg
-        name="onnx2"
-        default="path/to/model.onnx"
-        description="Path to the ONNX model"
-    />
-    <arg name="use_raw" default="false" description="Use raw image data" />
+  <arg name="onnx1" default="path/to/model.onnx" description="Path to the ONNX model"/>
+  <arg name="onnx2" default="path/to/model.onnx" description="Path to the ONNX model"/>
+  <arg name="use_raw" default="false" description="Use raw image data"/>
 
-    <arg
-        name="input/image"
-        default="/input/image"
-        description="Input image topic"
-    />
+  <arg name="input/image" default="/input/image" description="Input image topic"/>
 
-    <node
-        pkg="onnxcomp"
-        exec="onnxcomp_node"
-        name="onnxcomp_node"
-        output="screen"
-    >
-        <param name="onnx1" value="$(var onnx1)" />
-        <param name="onnx2" value="$(var onnx2)" />
-        <param name="use_raw" value="$(var use_raw)" />
-        <remap from="~/input/image" to="$(var input/image)" />
-    </node>
+  <node pkg="onnxcomp" exec="onnxcomp_node" name="onnxcomp_node" output="screen">
+    <param name="onnx1" value="$(var onnx1)"/>
+    <param name="onnx2" value="$(var onnx2)"/>
+    <param name="use_raw" value="$(var use_raw)"/>
+    <remap from="~/input/image" to="$(var input/image)"/>
+  </node>
 </launch>
