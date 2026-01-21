@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import cv2
-import numpy as np
-import onnxruntime as ort
 import rclpy
 from cv_bridge import CvBridge
-from numpy._typing import NDArray
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.topic_endpoint_info import QoSHistoryPolicy
 from sensor_msgs.msg import CompressedImage, Image
+from torchmetrics.regression import CosineSimilarity, JensenShannonDivergence
+
+from onnxcomp.onnxcomp.inference import InferenceModel
+from onnxcomp.onnxcomp.scorer import Scorer
 
 
 class OnnxCompareNode(Node):
@@ -19,24 +19,31 @@ class OnnxCompareNode(Node):
         # ROS 2 parameters
         descriptor = ParameterDescriptor(dynamic_typing=True)
 
-        self._onnx_path = (
-            self.declare_parameter("onnx_path", descriptor=descriptor)
+        onnx1 = (
+            self.declare_parameter("onnx1", descriptor=descriptor)
             .get_parameter_value()
             .string_value
         )
+        onnx2 = (
+            self.declare_parameter("onnx2", descriptor=descriptor)
+            .get_parameter_value()
+            .string_value
+        )
+
         self._use_raw = (
             self.declare_parameter("use_raw", descriptor=descriptor)
             .get_parameter_value()
             .bool_value
         )
 
-        # onnxruntime session
-        self._session = ort.InferenceSession(
-            self._onnx_path, providers=["CPUExecutionProvider", "CUDAExecutionProvider"]
-        )
-        self._in_shape = self._session.get_inputs()[0].shape
-        self._in_name = self._session.get_inputs()[0].name
-        self._out_names = [o.name for o in self._session.get_outputs()]
+        self._model1 = InferenceModel(onnx1)
+        self._model2 = InferenceModel(onnx2)
+
+        self._cossim = CosineSimilarity()
+        self._jsd = JensenShannonDivergence()
+
+        self._cossim_scorer = Scorer("Cosine Similarity")
+        self._jsd_scorer = Scorer("Jensen-Shannon Divergence")
 
         # cv bridge
         self._cv_bridge = CvBridge()
@@ -48,40 +55,14 @@ class OnnxCompareNode(Node):
             depth=10,
         )
 
-        self._input_subscription = self.create_subscription(
+        self._image_subscription = self.create_subscription(
             Image if self._use_raw else CompressedImage,
             "~/input/image",
             self.callback,
             qos_profile,
         )
 
-        self._feature_publisher = self.create_publisher(
-            Image,
-            "~/output/feature",
-            qos_profile,
-        )
-
     def callback(self, msg: Image | CompressedImage) -> None:
-        image = self.preprocess(msg)
-
-        # inference
-        *_, feature = self._session.run(self._out_names, {self._in_name: image})
-        feature = np.asarray(feature)
-
-        # publish feature map as Image
-        feature = self.postprocess(feature)
-        feature_msg = self._cv_bridge.cv2_to_imgmsg(feature)
-        self._feature_publisher.publish(feature_msg)
-
-    def preprocess(self, msg: Image | CompressedImage) -> NDArray:
-        """Preprocess input image.
-
-        Args:
-            msg (Image | CompressedImage): Input image message.
-
-        Returns:
-            Preprocessed image as a NumPy array.
-        """
         if self._use_raw:
             # convert Image to cv2 image
             image = self._cv_bridge.imgmsg_to_cv2(msg)
@@ -89,26 +70,22 @@ class OnnxCompareNode(Node):
             # convert CompressedImage to cv2 image
             image = self._cv_bridge.compressed_imgmsg_to_cv2(msg)
 
-        # preprocess
-        image = cv2.resize(image, (self._in_shape[3], self._in_shape[2]))
-        image = image.astype(np.float32) / 255.0
-        image = np.expand_dims(image, axis=0)
-        image = np.transpose(image, (0, 3, 1, 2))
-        return image
+        p1 = self._model1(image)
+        p2 = self._model2(image)
 
-    def postprocess(self, feature: NDArray) -> NDArray:
-        """Postprocess feature map.
+        cossim_score = self._cossim(p1, p2)
+        jsd_score = self._jsd(p1, p2)
 
-        Args:
-            feature (NDArray): Feature map as a NumPy array.
+        self._cossim_scorer.add_score(cossim_score)
+        self._jsd_scorer.add_score(jsd_score)
 
-        Returns:
-            Postprocessed feature map as a NumPy array.
-        """
-        # (1, C, H, W) -> (H, W, C) -> (H, W)
-        feature = feature[0].transpose(1, 2, 0).mean(axis=2)
-        feature = cv2.normalize(feature, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        return feature
+        self.get_logger().info(f"{self._cossim_scorer.metric}: {cossim_score:.4f}")
+        self.get_logger().info(f"{self._jsd_scorer.metric}: {jsd_score:.4f}")
+
+    def summarize(self) -> None:
+        """Summarize the results."""
+        self._cossim_scorer.print_summary()
+        self._jsd_scorer.print_summary()
 
 
 def main(args=None) -> None:
@@ -121,6 +98,8 @@ def main(args=None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        node.summarize()
+
         node.destroy_node()
         rclpy.try_shutdown()
 
