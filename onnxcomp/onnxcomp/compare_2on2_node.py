@@ -1,21 +1,21 @@
 from __future__ import annotations
 
+import message_filters
 import rclpy
 from cv_bridge import CvBridge
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
-from rclpy.topic_endpoint_info import QoSHistoryPolicy
 from sensor_msgs.msg import CompressedImage, Image
+from std_msgs.msg import Float64
 from torchmetrics.regression import CosineSimilarity, JensenShannonDivergence
 
 from onnxcomp.onnxcomp.inference import InferenceModel
 from onnxcomp.onnxcomp.scorer import Scorer
 
 
-class OnnxCompareNode(Node):
+class OnnxCompare2on2Node(Node):
     def __init__(self) -> None:
-        super().__init__("onnx_compare_node")
+        super().__init__("compare_2on2_node")
         # ROS 2 parameters
         descriptor = ParameterDescriptor(dynamic_typing=True)
 
@@ -49,29 +49,38 @@ class OnnxCompareNode(Node):
         self._cv_bridge = CvBridge()
 
         # subscription & publisher
-        qos_profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10,
+        image_sub1 = message_filters.Subscriber(
+            "~/input/image1", Image if self._use_raw else CompressedImage
+        )
+        image_sub2 = message_filters.Subscriber(
+            "~/input/image2", Image if self._use_raw else CompressedImage
+        )
+        ts = message_filters.ApproximateTimeSynchronizer(
+            [image_sub1, image_sub2], 10, 0.1
+        )
+        ts.registerCallback(self.callback)
+
+        self._cossim_publisher = self.create_publisher(
+            Float64, "~/output/score/cosine_similarity", 1
+        )
+        self._jsd_publisher = self.create_publisher(
+            Float64, "~/output/score/jensen_shannon_divergence", 1
         )
 
-        self._image_subscription = self.create_subscription(
-            Image if self._use_raw else CompressedImage,
-            "~/input/image",
-            self.callback,
-            qos_profile,
-        )
-
-    def callback(self, msg: Image | CompressedImage) -> None:
+    def callback(
+        self, msg1: Image | CompressedImage, msg2: Image | CompressedImage
+    ) -> None:
         if self._use_raw:
             # convert Image to cv2 image
-            image = self._cv_bridge.imgmsg_to_cv2(msg)
+            image1 = self._cv_bridge.imgmsg_to_cv2(msg1)
+            image2 = self._cv_bridge.imgmsg_to_cv2(msg2)
         else:
             # convert CompressedImage to cv2 image
-            image = self._cv_bridge.compressed_imgmsg_to_cv2(msg)
+            image1 = self._cv_bridge.compressed_imgmsg_to_cv2(msg1)
+            image2 = self._cv_bridge.compressed_imgmsg_to_cv2(msg2)
 
-        p1 = self._model1(image)
-        p2 = self._model2(image)
+        p1 = self._model1(image1)
+        p2 = self._model2(image2)
 
         cossim_score = self._cossim(p1, p2)
         jsd_score = self._jsd(p1, p2)
@@ -82,6 +91,14 @@ class OnnxCompareNode(Node):
         self.get_logger().info(f"{self._cossim_scorer.metric}: {cossim_score:.4f}")
         self.get_logger().info(f"{self._jsd_scorer.metric}: {jsd_score:.4f}")
 
+        cossim_score_msg = Float64()
+        cossim_score_msg.data = cossim_score
+        self._cossim_publisher.publish(cossim_score_msg)
+
+        jsd_score_msg = Float64()
+        jsd_score_msg.data = jsd_score
+        self._jsd_publisher.publish(jsd_score_msg)
+
     def summarize(self) -> None:
         """Summarize the results."""
         self._cossim_scorer.print_summary()
@@ -91,7 +108,7 @@ class OnnxCompareNode(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
 
-    node = OnnxCompareNode()
+    node = OnnxCompare2on2Node()
     executor = rclpy.executors.MultiThreadedExecutor()
     try:
         rclpy.spin(node, executor)

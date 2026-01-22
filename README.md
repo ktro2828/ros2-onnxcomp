@@ -50,9 +50,17 @@ Here is the sample result (Left: Before, Right: After):
 
 ### Run Comparison with T4 Datasets
 
-```shell
-python3 -m tools.evaluate <ONNX1> <ONNX2> <DATA_ROOT>
-```
+- Compare 2 ONNX models' features for the same images:
+
+  ```shell
+  python3 -m tools.compare_2on1 <ONNX1> <ONNX2> <DATA_ROOT>
+  ```
+
+- Compare 2 ONNX models' features for images compressed with the different compression types or parameters:
+
+  ```shell
+  python3 -m tools.compare_2on2 <ONNX1> <ONNX2> <DATA_ROOT1> <DATA_ROOT2>
+  ```
 
 ### Run Comparison on ROS 2
 
@@ -65,10 +73,10 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-#### Run ROS 2 Node
+#### Compare 2 ONNX models' features for the same images:
 
 ```shell
-ros2 launch onnxcomp onnxcomp.launch.xml onnx1:=<ONNX_PATH; str> onnx2:=<ONNX_PATH; str>
+ros2 launch onnxcomp compare_2on1.launch.xml onnx1:=<ONNX_PATH; str> onnx2:=<ONNX_PATH; str> input/image:=<IMAGE_TOPIC; str>
 ```
 
 ##### Input Topics
@@ -76,6 +84,41 @@ ros2 launch onnxcomp onnxcomp.launch.xml onnx1:=<ONNX_PATH; str> onnx2:=<ONNX_PA
 | Name            | Type                                   | Description                                        |
 | --------------- | -------------------------------------- | -------------------------------------------------- |
 | "~/input/image" | `sensor_msgs/Image \| CompressedImage` | Input image or compressed image if `use_raw=false` |
+
+##### Output Topics
+
+| Name                                       | Type               | Description                                                     |
+| ------------------------------------------ | ------------------ | --------------------------------------------------------------- |
+| "~/output/score/cosine_similarity"         | `std_msgs/Float64` | Output cosine similarity score between the two features         |
+| "~/output/score/jensen_shannon_divergence" | `std_msgs/Float64` | Output Jensen-Shannon divergence score between the two features |
+
+##### Parameters
+
+| Name      | Type     | Default                | Description                       |
+| --------- | -------- | ---------------------- | --------------------------------- |
+| "onnx1"   | `string` | `"path/to/model.onnx"` | File path to the ONNX model       |
+| "onnx2"   | `string` | `"path/to/model.onnx"` | File path to the ONNX model       |
+| "use_raw" | `bool`   | `false`                | Whether to use raw image as input |
+
+#### Compare 2 ONNX models' features for images compressed with the different compression types or parameters:
+
+```shell
+ros2 launch onnxcomp compare_2on2.launch.xml onnx1:=<ONNX_PATH; str> onnx2:=<ONNX_PATH; str> input/image1:=<IMAGE_TOPIC; str> input/image2:=<IMAGE_TOPIC; str>
+```
+
+##### Input Topics
+
+| Name             | Type                                   | Description                                        |
+| ---------------- | -------------------------------------- | -------------------------------------------------- |
+| "~/input/image1" | `sensor_msgs/Image \| CompressedImage` | Input image or compressed image if `use_raw=false` |
+| "~/input/image2" | `sensor_msgs/Image \| CompressedImage` | Input image or compressed image if `use_raw=false` |
+
+##### Output Topics
+
+| Name                                       | Type               | Description                                                     |
+| ------------------------------------------ | ------------------ | --------------------------------------------------------------- |
+| "~/output/score/cosine_similarity"         | `std_msgs/Float64` | Output cosine similarity score between the two features         |
+| "~/output/score/jensen_shannon_divergence" | `std_msgs/Float64` | Output Jensen-Shannon divergence score between the two features |
 
 ##### Parameters
 

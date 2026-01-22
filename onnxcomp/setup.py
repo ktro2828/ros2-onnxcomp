@@ -23,6 +23,9 @@ setup(
     license="Apache License 2.0",
     extras_require={"test": ["pytest"]},
     entry_points={
-        "console_scripts": [f"{package_name}_node = {package_name}.node:main"],
+        "console_scripts": [
+            f"{package_name}_2on1_node = {package_name}.compare_2on1_node:main",
+            f"{package_name}_2on2_node = {package_name}.compare_2on2_node:main",
+        ],
     },
 )

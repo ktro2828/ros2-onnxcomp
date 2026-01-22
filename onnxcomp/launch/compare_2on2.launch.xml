@@ -4,12 +4,14 @@
   <arg name="onnx2" default="path/to/model.onnx" description="Path to the ONNX model"/>
   <arg name="use_raw" default="false" description="Use raw image data"/>
 
-  <arg name="input/image" default="/input/image" description="Input image topic"/>
+  <arg name="input/image1" default="/input/image1" description="Input image topic for model1"/>
+  <arg name="input/image2" default="/input/image2" description="Input image topic for model2"/>
 
-  <node pkg="onnxcomp" exec="onnxcomp_node" name="onnxcomp_node" output="screen">
+  <node pkg="onnxcomp" exec="onnxcomp_2on2_node" name="compare_2on2_node" output="screen">
     <param name="onnx1" value="$(var onnx1)"/>
     <param name="onnx2" value="$(var onnx2)"/>
     <param name="use_raw" value="$(var use_raw)"/>
-    <remap from="~/input/image" to="$(var input/image)"/>
+    <remap from="~/input/image1" to="$(var input/image1)"/>
+    <remap from="~/input/image2" to="$(var input/image2)"/>
   </node>
 </launch>

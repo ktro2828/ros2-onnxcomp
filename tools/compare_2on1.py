@@ -33,7 +33,7 @@ def inference(onnx_path: str, image_path: str) -> torch.Tensor:
     return model(image)
 
 
-def evaluate(onnx1: str, onnx2: str, data_root: str) -> None:
+def compare(onnx1: str, onnx2: str, data_root: str) -> None:
     t4 = Tier4(data_root, verbose=False)
 
     cossim = CosineSimilarity()
@@ -61,13 +61,15 @@ def evaluate(onnx1: str, onnx2: str, data_root: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate ONNX model feature")
+    parser = argparse.ArgumentParser(
+        description="Compare 2 ONNX models' features for the same image"
+    )
     parser.add_argument("onnx1", type=str, help="Path to ONNX model 1")
     parser.add_argument("onnx2", type=str, help="Path to ONNX model 2")
-    parser.add_argument("data_root", type=str, help="Directory path to T4 datasets")
+    parser.add_argument("data_root", type=str, help="Directory path to T4 dataset")
     args = parser.parse_args()
 
-    evaluate(args.onnx1, args.onnx2, args.data_root)
+    compare(args.onnx1, args.onnx2, args.data_root)
 
 
 if __name__ == "__main__":
